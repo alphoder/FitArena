@@ -31,6 +31,11 @@
         "backgroundColor": "#22c55e"
       },
       "package": "com.fitarena.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -49,10 +54,9 @@
         }
       ],
       [
-        "@rnmapbox/maps",
+        "expo-location",
         {
-          "RNMapboxMapsImpl": "mapbox",
-          "RNMapboxMapsDownloadToken": "YOUR_MAPBOX_DOWNLOAD_TOKEN"
+          "isAndroidBackgroundLocationEnabled": true
         }
       ]
     ],

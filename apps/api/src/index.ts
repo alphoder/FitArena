@@ -10,6 +10,10 @@ import { activityRoutes } from "./routes/activities";
 import { challengeRoutes } from "./routes/challenges";
 import { webhookRoutes } from "./routes/webhooks";
 import { integrationRoutes } from "./routes/integrations";
+import { adminRoutes } from "./routes/admin";
+import { startWorkers } from "./workers";
+import websocket from "@fastify/websocket";
+import { registerRealtimeRoutes } from "./services/realtime";
 
 const app = Fastify({
   logger: {
@@ -24,6 +28,9 @@ async function registerPlugins() {
     origin: config.cors.origin,
     credentials: true,
   });
+
+  // WebSocket
+  await app.register(websocket);
 
   // Rate limiting
   await app.register(rateLimit, {
@@ -46,6 +53,8 @@ async function registerRoutes() {
   await app.register(challengeRoutes);
   await app.register(webhookRoutes);
   await app.register(integrationRoutes);
+  await app.register(adminRoutes);
+  await registerRealtimeRoutes(app);
 }
 
 // Health check
@@ -110,6 +119,9 @@ async function start() {
       port: config.port,
       host: config.host,
     });
+
+    // Start BullMQ workers after server is listening
+    await startWorkers();
 
     console.log(`
     🏟️  FitArena API is running!

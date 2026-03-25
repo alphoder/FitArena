@@ -6,22 +6,21 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useAuthStore } from "../../store/auth";
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState("");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   
-  const { sendOtp, verifyOtp } = useAuthStore();
+  const { sendOtp } = useAuthStore();
 
   const handleSendOtp = async () => {
+    setError("");
     if (phoneNumber.length !== 10) {
-      Alert.alert("Error", "Please enter a valid 10-digit phone number");
+      setError("Please enter a valid 10-digit phone number");
       return;
     }
 
@@ -30,139 +29,89 @@ export default function LoginScreen() {
     setIsLoading(false);
 
     if (success) {
-      setStep("otp");
+      router.push({
+        pathname: "/(auth)/verify",
+        params: { phone: phoneNumber }
+      });
     } else {
-      Alert.alert("Error", "Failed to send OTP. Please try again.");
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      Alert.alert("Error", "Please enter a valid 6-digit OTP");
-      return;
-    }
-
-    setIsLoading(true);
-    const result = await verifyOtp(phoneNumber, otp);
-    setIsLoading(false);
-
-    if (result.success) {
-      if (result.isNew) {
-        router.replace("/(auth)/onboarding");
-      } else {
-        router.replace("/(tabs)/map");
-      }
-    } else {
-      Alert.alert("Error", "Invalid OTP. Please try again.");
+      setError("Failed to send OTP. Please try again.");
     }
   };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-white"
+      className="flex-1 bg-[#011202]"
     >
-      <View className="flex-1 px-6 pt-20">
-        {/* Logo */}
-        <View className="items-center mb-12">
-          <View className="w-20 h-20 bg-green-100 rounded-2xl items-center justify-center mb-4">
-            <Text className="text-4xl">🏟️</Text>
+      <View className="flex-1 px-8 pt-24">
+        {/* Logo Section */}
+        <View className="items-center mb-16 mt-8">
+          <View className="w-24 h-24 bg-[#0e2c0f] rounded-2xl items-center justify-center mb-6 border border-[#374d34] shadow-lg shadow-[#6bff8f]/10">
+            <Text className="text-5xl">🛡️</Text>
           </View>
-          <Text className="text-3xl font-bold text-gray-900">FitArena</Text>
-          <Text className="text-gray-600 mt-2 text-center">
+          <Text className="text-4xl font-bold text-[#d5f0cd] tracking-tight">FitArena</Text>
+          <Text className="text-[#99b292] mt-3 text-center text-lg font-medium">
             Turn every workout into a territory battle
+          </Text>
+          <Text className="text-[#6bff8f] font-bold mt-2 text-center text-base tracking-wide">
+            Which group owns YOUR neighborhood?
           </Text>
         </View>
 
-        {step === "phone" ? (
-          <View>
-            <Text className="text-lg font-semibold text-gray-900 mb-2">
-              Enter your phone number
-            </Text>
-            <Text className="text-gray-600 mb-6">
-              We'll send you a verification code
-            </Text>
+        {/* Input Section */}
+        <View className="mt-8">
+          <Text className="text-base font-medium text-[#d5f0cd] mb-3">
+            Enter your phone number
+          </Text>
 
-            <View className="flex-row items-center border border-gray-300 rounded-xl overflow-hidden mb-6">
-              <View className="px-4 py-4 bg-gray-50 border-r border-gray-300">
-                <Text className="text-gray-700 font-medium">+91</Text>
-              </View>
-              <TextInput
-                value={phoneNumber}
-                onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ""))}
-                placeholder="9876543210"
-                keyboardType="phone-pad"
-                maxLength={10}
-                className="flex-1 px-4 py-4 text-lg"
-              />
+          <View className="flex-row items-center bg-[#0e2c0f] border border-[#374d34] rounded-xl overflow-hidden mb-2 shadow-sm">
+            <View className="px-5 py-4 bg-[#051e06] border-r border-[#374d34]">
+              <Text className="text-[#99b292] font-bold text-lg">+91</Text>
             </View>
-
-            <TouchableOpacity
-              onPress={handleSendOtp}
-              disabled={isLoading || phoneNumber.length !== 10}
-              className={`py-4 rounded-xl items-center ${
-                isLoading || phoneNumber.length !== 10
-                  ? "bg-gray-300"
-                  : "bg-green-600"
-              }`}
-            >
-              <Text className="text-white font-semibold text-lg">
-                {isLoading ? "Sending..." : "Get OTP"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View>
-            <Text className="text-lg font-semibold text-gray-900 mb-2">
-              Enter verification code
-            </Text>
-            <Text className="text-gray-600 mb-6">
-              Code sent to +91 {phoneNumber}
-            </Text>
-
             <TextInput
-              value={otp}
-              onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ""))}
-              placeholder="000000"
-              keyboardType="number-pad"
-              maxLength={6}
-              className="border border-gray-300 rounded-xl px-4 py-4 text-center text-2xl tracking-widest mb-6"
+              value={phoneNumber}
+              onChangeText={(text) => {
+                setError("");
+                setPhoneNumber(text.replace(/[^0-9]/g, ""));
+              }}
+              placeholder="9876543210"
+              placeholderTextColor="#445b41"
+              keyboardType="phone-pad"
+              maxLength={10}
+              className="flex-1 px-5 py-4 text-xl text-[#d5f0cd] font-semibold"
             />
+          </View>
+          
+          {error ? (
+            <Text className="text-[#ff7351] text-sm mb-4 ml-1">{error}</Text>
+          ) : (
+            <View className="mb-4 h-5" />
+          )}
 
-            <TouchableOpacity
-              onPress={handleVerifyOtp}
-              disabled={isLoading || otp.length !== 6}
-              className={`py-4 rounded-xl items-center ${
-                isLoading || otp.length !== 6 ? "bg-gray-300" : "bg-green-600"
+          <TouchableOpacity
+            onPress={handleSendOtp}
+            disabled={isLoading || phoneNumber.length !== 10}
+            className={`py-4 rounded-xl items-center shadow-lg ${
+              isLoading || phoneNumber.length !== 10
+                ? "bg-[#09250a] border border-[#374d34]"
+                : "bg-[#22C55E] border border-[#6bff8f]"
+            }`}
+          >
+            <Text 
+              className={`font-bold text-lg ${
+                isLoading || phoneNumber.length !== 10 ? "text-[#445b41]" : "text-[#002c0f]"
               }`}
             >
-              <Text className="text-white font-semibold text-lg">
-                {isLoading ? "Verifying..." : "Verify"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setStep("phone");
-                setOtp("");
-              }}
-              className="mt-4 py-2 items-center"
-            >
-              <Text className="text-green-600 font-medium">Change number</Text>
-            </TouchableOpacity>
-
-            {/* Dev bypass hint */}
-            <Text className="text-center text-gray-400 text-sm mt-8">
-              Use 000000 to bypass OTP in development
+              {isLoading ? "Sending..." : "Get OTP"}
             </Text>
-          </View>
-        )}
+          </TouchableOpacity>
+        </View>
 
-        <View className="mt-auto pb-8">
-          <Text className="text-center text-gray-500 text-sm">
+        <View className="mt-auto pb-10">
+          <Text className="text-center text-[#99b292] text-xs">
             By continuing, you agree to our{" "}
-            <Text className="text-green-600">Terms of Service</Text> and{" "}
-            <Text className="text-green-600">Privacy Policy</Text>
+            <Text className="text-[#6bff8f] font-medium">Terms of Service</Text> and{" "}
+            <Text className="text-[#6bff8f] font-medium">Privacy Policy</Text>
           </Text>
         </View>
       </View>

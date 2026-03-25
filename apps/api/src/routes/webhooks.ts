@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { config } from "../config";
 import { processStravaWebhook } from "../services/strava";
+import { processRazorpayWebhook } from "../services/payments";
 import { schemas } from "@fitarena/shared/validation";
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
@@ -64,10 +65,12 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/api/v1/webhooks/razorpay",
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // TODO: Implement Razorpay webhook handling
-      // Handle payment.authorized, payment.captured, refund events
-      
-      console.log("Razorpay webhook received:", request.body);
+      const body = request.body as { event: string; payload: Record<string, unknown> };
+
+      // Process asynchronously
+      processRazorpayWebhook(body as Parameters<typeof processRazorpayWebhook>[0]).catch((error) => {
+        console.error("Razorpay webhook processing error:", error);
+      });
 
       return reply.status(200).send({ received: true });
     }

@@ -4,7 +4,8 @@ import { users, activities, userBadges, badges, groupMembers, groups } from "@fi
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
 import { schemas } from "@fitarena/shared/validation";
-import { getWeekStart, getWeekEnd, getUserWeeklyAp } from "../services/activity";
+import { getWeekStart, getWeekEnd } from "@fitarena/shared";
+import { getUserWeeklyAp } from "../services/activity";
 
 export async function userRoutes(app: FastifyInstance): Promise<void> {
   // Get current user profile

@@ -3,7 +3,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "../store/auth";
-import "../global.css";
+// NativeWind 2 doesn't need CSS import — babel plugin handles it
 
 const queryClient = new QueryClient({
   defaultOptions: {

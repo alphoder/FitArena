@@ -1,205 +1,237 @@
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { useState, useEffect } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Settings,
-  ChevronRight,
-  Award,
-  Activity,
-  Flame,
-  Zap,
-  Link2,
-  LogOut,
-} from "lucide-react-native";
-import { useAuthStore } from "../../store/auth";
 import { router } from "expo-router";
+import { useAuthStore } from "../../store/auth";
+import { api } from "../../lib/api";
+
+interface WeeklyStats {
+  totalAp: number;
+  activityCount: number;
+  totalDurationSeconds: number;
+}
+
+// XP Level thresholds from PRD
+const LEVELS = [
+  { level: 1, name: "Newcomer", xp: 0 },
+  { level: 2, name: "Regular", xp: 100 },
+  { level: 3, name: "Active", xp: 300 },
+  { level: 4, name: "Committed", xp: 600 },
+  { level: 5, name: "Dedicated", xp: 1000 },
+  { level: 6, name: "Warrior", xp: 1500 },
+  { level: 7, name: "Champion", xp: 2500 },
+  { level: 8, name: "Legend", xp: 4000 },
+  { level: 9, name: "Elite", xp: 6000 },
+  { level: 10, name: "Apex", xp: 10000 },
+];
+
+const MOCK_BADGES = [
+  { emoji: "🔥", name: "7-Day Streak", earned: true },
+  { emoji: "🏃", name: "First Run", earned: true },
+  { emoji: "👥", name: "Team Player", earned: true },
+  { emoji: "🌟", name: "Top 10", earned: true },
+  { emoji: "🏋️", name: "Iron Will", earned: false },
+  { emoji: "🗺️", name: "Zone Conqueror", earned: false },
+];
+
+function getLevelInfo(xp: number) {
+  let current = LEVELS[0];
+  let next = LEVELS[1];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xp) {
+      current = LEVELS[i];
+      next = LEVELS[i + 1] ?? LEVELS[i];
+      break;
+    }
+  }
+  const progress = next.xp > current.xp
+    ? ((xp - current.xp) / (next.xp - current.xp)) * 100
+    : 100;
+  return { current, next, progress };
+}
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshUser } = useAuthStore();
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats>({ totalAp: 680, activityCount: 4, totalDurationSeconds: 7200 });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)/login");
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshUser();
+      const result = await api.getMyStats("week");
+      if (result.success && result.data) {
+        setWeeklyStats(result.data as WeeklyStats);
+      }
+    } catch {
+      // silent
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
-      <ScrollView className="flex-1">
-        {/* Header */}
-        <View className="bg-white px-4 py-6 border-b border-gray-200">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-2xl font-bold text-gray-900">Profile</Text>
-            <TouchableOpacity className="p-2">
-              <Settings size={24} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
+  useEffect(() => {
+    handleRefresh();
+  }, []);
 
-          {/* Profile Card */}
-          <View className="flex-row items-center">
-            <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center">
-              <Text className="text-3xl font-bold text-green-700">
-                {user?.displayName?.[0] || "U"}
+  const handleLogout = () => {
+    Alert.alert("Log Out", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
+  };
+
+  const xp = user?.xpTotal ?? 0;
+  const levelInfo = getLevelInfo(xp);
+  const streak = user?.currentStreak ?? 0;
+
+  return (
+    <SafeAreaView className="flex-1 bg-[#011202]" edges={["top"]}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#6bff8f" />
+        }
+      >
+        {/* Header */}
+        <View className="px-6 pt-4 pb-2 flex-row items-center justify-between">
+          <Text className="text-2xl font-black text-[#d5f0cd] tracking-tight">Profile</Text>
+          <TouchableOpacity onPress={() => router.push("/settings")} className="py-2 pl-4">
+            <Text className="text-[#99b292] text-sm font-medium">⚙️ Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Profile Card */}
+        <View className="px-6 py-4">
+          <View className="flex-row items-center mb-4">
+            <View className="w-18 h-18 bg-[#0f3a11] border-2 border-[#6bff8f] rounded-2xl items-center justify-center" style={{ width: 72, height: 72 }}>
+              <Text className="text-3xl font-black text-[#6bff8f]">
+                {user?.displayName?.[0]?.toUpperCase() ?? "U"}
               </Text>
             </View>
             <View className="ml-4 flex-1">
-              <Text className="text-xl font-bold text-gray-900">
-                {user?.displayName || "User"}
+              <Text className="text-[#d5f0cd] font-black text-xl">
+                {user?.displayName ?? "User"}
               </Text>
-              <Text className="text-gray-500">Level {user?.level || 1}</Text>
-              <View className="flex-row items-center mt-2">
-                <View className="bg-green-100 px-3 py-1 rounded-full">
-                  <Text className="text-green-700 font-medium">
-                    {user?.xpTotal || 0} XP
-                  </Text>
-                </View>
-              </View>
+              <Text className="text-[#99b292] text-sm mt-0.5">
+                Level {levelInfo.current.level} · {levelInfo.current.name}
+              </Text>
             </View>
+          </View>
+
+          {/* XP Progress */}
+          <View className="bg-[#051e06] border border-[#374d34] rounded-xl p-3 mb-4">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-[#99b292] text-xs font-bold uppercase tracking-widest">Experience</Text>
+              <Text className="text-[#6bff8f] text-xs font-bold">
+                {xp} / {levelInfo.next.xp} XP
+              </Text>
+            </View>
+            <View className="h-2 bg-[#011202] rounded-full overflow-hidden">
+              <View className="h-full bg-[#6bff8f] rounded-full" style={{ width: `${levelInfo.progress}%` }} />
+            </View>
+            <Text className="text-[#445b41] text-[10px] mt-1.5">
+              {levelInfo.next.xp - xp} XP to {levelInfo.next.name}
+            </Text>
           </View>
         </View>
 
-        {/* Stats Grid */}
-        <View className="bg-white mx-4 my-4 rounded-xl p-4 shadow-sm">
-          <Text className="text-lg font-semibold text-gray-900 mb-4">
-            This Week
-          </Text>
-          <View className="flex-row">
-            <StatCard icon={<Zap size={20} color="#22c55e" />} value="680" label="AP" />
-            <StatCard icon={<Activity size={20} color="#3b82f6" />} value="4" label="Activities" />
-            <StatCard icon={<Flame size={20} color="#f97316" />} value={String(user?.currentStreak || 0)} label="Streak" />
+        {/* Stats Row */}
+        <View className="flex-row px-6 gap-3 mb-6">
+          <View className="flex-1 bg-[#0e2c0f] border border-[#374d34] rounded-xl p-3 items-center">
+            <Text className="text-[#6bff8f] text-2xl font-black">{weeklyStats.totalAp}</Text>
+            <Text className="text-[#445b41] text-xs font-bold uppercase">Weekly AP</Text>
+          </View>
+          <View className="flex-1 bg-[#0e2c0f] border border-[#374d34] rounded-xl p-3 items-center">
+            <Text className="text-[#d5f0cd] text-2xl font-black">{weeklyStats.activityCount}</Text>
+            <Text className="text-[#445b41] text-xs font-bold uppercase">Activities</Text>
+          </View>
+          <View className="flex-1 bg-[#0e2c0f] border border-[#374d34] rounded-xl p-3 items-center">
+            <Text className="text-[#f59e0b] text-2xl font-black">
+              {streak > 0 ? `${streak}🔥` : "0"}
+            </Text>
+            <Text className="text-[#445b41] text-xs font-bold uppercase">Streak</Text>
           </View>
         </View>
 
         {/* Badges */}
-        <View className="bg-white mx-4 mb-4 rounded-xl p-4 shadow-sm">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-lg font-semibold text-gray-900">Badges</Text>
-            <TouchableOpacity className="flex-row items-center">
-              <Text className="text-green-600 font-medium">View All</Text>
-              <ChevronRight size={16} color="#22c55e" />
+        <View className="px-6 mb-6">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-sm font-bold text-[#d5f0cd] uppercase tracking-wider">Badges</Text>
+            <TouchableOpacity onPress={() => router.push("/badges")}>
+              <Text className="text-[#6bff8f] text-sm font-bold">View All →</Text>
             </TouchableOpacity>
           </View>
-          <View className="flex-row gap-3">
-            <BadgeItem emoji="🔥" label="7-Day Streak" />
-            <BadgeItem emoji="🏃" label="First Run" />
-            <BadgeItem emoji="👥" label="Team Player" />
-            <BadgeItem emoji="🌟" label="Top 10" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row gap-3">
+              {MOCK_BADGES.map((badge) => (
+                <View
+                  key={badge.name}
+                  className={`items-center w-16 ${!badge.earned ? "opacity-40" : ""}`}
+                >
+                  <View className={`w-14 h-14 rounded-xl items-center justify-center border ${
+                    badge.earned ? "bg-[#0f3a11] border-[#374d34]" : "bg-[#051e06] border-[#1a2e1b]"
+                  }`}>
+                    <Text className="text-2xl">{badge.emoji}</Text>
+                  </View>
+                  <Text className="text-[#99b292] text-[10px] text-center mt-1" numberOfLines={1}>
+                    {badge.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Menu Items */}
+        <View className="px-6 mb-6">
+          <Text className="text-xs font-bold text-[#99b292] uppercase tracking-widest mb-3">Account</Text>
+          <View className="bg-[#0e2c0f] border border-[#374d34] rounded-xl overflow-hidden">
+            <MenuItem emoji="📊" label="Activity History" onPress={() => router.push("/activity-history")} />
+            <MenuItem emoji="🏆" label="Badges & Achievements" onPress={() => router.push("/badges")} />
+            <MenuItem emoji="🔗" label="Connected Apps" onPress={() => router.push("/settings")} />
+            <MenuItem emoji="⚙️" label="Settings" onPress={() => router.push("/settings")} last />
           </View>
-        </View>
-
-        {/* Connected Apps */}
-        <View className="bg-white mx-4 mb-4 rounded-xl overflow-hidden shadow-sm">
-          <Text className="text-lg font-semibold text-gray-900 p-4 pb-2">
-            Connected Apps
-          </Text>
-          <MenuItem
-            icon={<Link2 size={20} color="#FC4C02" />}
-            label="Strava"
-            value={user?.stravaConnected ? "Connected" : "Connect"}
-            onPress={() => {}}
-          />
-          <MenuItem
-            icon={<Link2 size={20} color="#4285F4" />}
-            label="Google Fit"
-            value={user?.googleFitConnected ? "Connected" : "Connect"}
-            onPress={() => {}}
-          />
-        </View>
-
-        {/* Account Settings */}
-        <View className="bg-white mx-4 mb-4 rounded-xl overflow-hidden shadow-sm">
-          <Text className="text-lg font-semibold text-gray-900 p-4 pb-2">
-            Account
-          </Text>
-          <MenuItem
-            icon={<Award size={20} color="#6b7280" />}
-            label="Achievements"
-            onPress={() => {}}
-          />
-          <MenuItem
-            icon={<Activity size={20} color="#6b7280" />}
-            label="Activity History"
-            onPress={() => {}}
-          />
-          <MenuItem
-            icon={<Settings size={20} color="#6b7280" />}
-            label="Settings"
-            onPress={() => {}}
-          />
         </View>
 
         {/* Logout */}
-        <TouchableOpacity
-          onPress={handleLogout}
-          className="bg-white mx-4 mb-8 rounded-xl p-4 flex-row items-center justify-center shadow-sm"
-        >
-          <LogOut size={20} color="#ef4444" />
-          <Text className="text-red-500 font-semibold ml-2">Log Out</Text>
-        </TouchableOpacity>
+        <View className="px-6 mb-10">
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="py-3 border border-red-900 rounded-xl items-center"
+          >
+            <Text className="text-red-500 font-medium">Log Out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function StatCard({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  value: string;
+function MenuItem({ emoji, label, onPress, last = false }: {
+  emoji: string;
   label: string;
-}) {
-  return (
-    <View className="flex-1 items-center">
-      {icon}
-      <Text className="text-2xl font-bold text-gray-900 mt-1">{value}</Text>
-      <Text className="text-gray-500 text-sm">{label}</Text>
-    </View>
-  );
-}
-
-function BadgeItem({ emoji, label }: { emoji: string; label: string }) {
-  return (
-    <View className="items-center">
-      <View className="w-14 h-14 bg-gray-100 rounded-xl items-center justify-center mb-1">
-        <Text className="text-2xl">{emoji}</Text>
-      </View>
-      <Text className="text-xs text-gray-600 text-center">{label}</Text>
-    </View>
-  );
-}
-
-function MenuItem({
-  icon,
-  label,
-  value,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value?: string;
   onPress: () => void;
+  last?: boolean;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="flex-row items-center justify-between p-4 border-b border-gray-100"
+      className={`flex-row items-center justify-between px-4 py-3.5 ${!last ? "border-b border-[#374d34]" : ""}`}
     >
       <View className="flex-row items-center">
-        {icon}
-        <Text className="text-gray-900 ml-3">{label}</Text>
+        <Text className="text-base mr-3">{emoji}</Text>
+        <Text className="text-[#d5f0cd] font-medium">{label}</Text>
       </View>
-      <View className="flex-row items-center">
-        {value && (
-          <Text
-            className={`mr-2 ${
-              value === "Connect" ? "text-green-600" : "text-gray-500"
-            }`}
-          >
-            {value}
-          </Text>
-        )}
-        <ChevronRight size={16} color="#9ca3af" />
-      </View>
+      <Text className="text-[#445b41]">→</Text>
     </TouchableOpacity>
   );
 }

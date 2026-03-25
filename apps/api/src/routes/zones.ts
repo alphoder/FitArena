@@ -5,6 +5,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
 import { getZoneLeaderboard, isCloseContest, getNearbyZones } from "../services/zone";
 import { getWeekStart } from "@fitarena/shared";
+import { weeklyResetQueue } from "../workers";
 
 export async function zoneRoutes(app: FastifyInstance): Promise<void> {
   // Get zones (with optional location filter)
@@ -264,6 +265,23 @@ export async function zoneRoutes(app: FastifyInstance): Promise<void> {
           type: "FeatureCollection",
           features,
         },
+      });
+    }
+  );
+
+  // Manual weekly reset trigger (admin/dev only)
+  app.post(
+    "/api/v1/zones/admin/weekly-reset",
+    { preHandler: authMiddleware },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      // TODO: Add admin role check
+      const job = await weeklyResetQueue.add("manual-reset", {
+        triggeredBy: "manual" as const,
+      });
+
+      return reply.send({
+        success: true,
+        data: { jobId: job.id, message: "Weekly reset job queued" },
       });
     }
   );

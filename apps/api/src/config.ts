@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load .env from monorepo root
+dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
+// Also try local .env (if exists)
+dotenv.config();
 
 export const config = {
   // Server

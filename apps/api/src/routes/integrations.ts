@@ -1,7 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { authMiddleware } from "../middleware/auth";
 import { getStravaAuthUrl, exchangeStravaCode, syncStravaHistory } from "../services/strava";
+import { exchangeGoogleFitCode, syncGoogleFitActivities } from "../services/googlefit";
 import { config } from "../config";
+import { db } from "../db";
+import { eq, and } from "drizzle-orm";
+import { oauthTokens } from "@fitarena/db/schema";
 
 export async function integrationRoutes(app: FastifyInstance): Promise<void> {
   // Get Strava OAuth URL
@@ -134,10 +138,51 @@ export async function integrationRoutes(app: FastifyInstance): Promise<void> {
         return reply.redirect("fitarena://google-fit/callback?error=missing_params");
       }
 
-      // TODO: Implement Google Fit token exchange
-      // Similar to Strava flow
+      try {
+        await exchangeGoogleFitCode(code, userId);
 
-      return reply.redirect("fitarena://google-fit/callback?success=true");
+        // Start initial sync in background (last 7 days)
+        syncGoogleFitActivities(userId, 7).catch((err) => {
+          console.error("Google Fit initial sync failed:", err);
+        });
+
+        return reply.redirect("fitarena://google-fit/callback?success=true");
+      } catch (err) {
+        console.error("Google Fit OAuth error:", err);
+        return reply.redirect("fitarena://google-fit/callback?error=exchange_failed");
+      }
+    }
+  );
+
+  // Sync Google Fit manually ("Sync Now" button)
+  app.post(
+    "/api/v1/integrations/google-fit/sync",
+    { preHandler: authMiddleware },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId = request.user!.userId;
+
+      try {
+        // Sync last 1 day only for manual sync — fast response
+        const count = await syncGoogleFitActivities(userId, 1);
+
+        return reply.send({
+          success: true,
+          data: {
+            message: `Synced ${count} activities from Google Fit`,
+            count,
+            syncedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error("Google Fit sync error:", error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: "SYNC_FAILED",
+            message: "Failed to sync Google Fit activities. Check your connection.",
+          },
+        });
+      }
     }
   );
 
@@ -148,23 +193,33 @@ export async function integrationRoutes(app: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId = request.user!.userId;
 
-      // TODO: Check actual token status from database
-      // For now, return mock status
+      // Fetch real token status from database
+      const tokens = await db.query.oauthTokens.findMany({
+        where: eq(oauthTokens.userId, userId),
+      });
+
+      const stravaToken = tokens.find((t) => t.provider === "strava");
+      const googleFitToken = tokens.find((t) => t.provider === "google_fit");
+      const terraToken = tokens.find((t) => t.provider === "terra");
 
       return reply.send({
         success: true,
         data: {
           strava: {
-            connected: false,
-            lastSync: null,
+            connected: !!stravaToken && stravaToken.tokenStatus === "ACTIVE",
+            tokenStatus: stravaToken?.tokenStatus ?? null,
+            lastSync: stravaToken?.lastSyncAt?.toISOString() ?? null,
+            errorCount: stravaToken?.errorCount ?? 0,
           },
           googleFit: {
-            connected: false,
-            lastSync: null,
+            connected: !!googleFitToken && googleFitToken.tokenStatus === "ACTIVE",
+            tokenStatus: googleFitToken?.tokenStatus ?? null,
+            lastSync: googleFitToken?.lastSyncAt?.toISOString() ?? null,
+            errorCount: googleFitToken?.errorCount ?? 0,
           },
           terra: {
-            connected: false,
-            devices: [],
+            connected: !!terraToken && terraToken.tokenStatus === "ACTIVE",
+            lastSync: terraToken?.lastSyncAt?.toISOString() ?? null,
           },
         },
       });

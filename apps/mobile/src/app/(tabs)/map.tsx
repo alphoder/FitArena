@@ -1,236 +1,200 @@
-import { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus, Filter, Layers, Navigation } from "lucide-react-native";
+import { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { router } from "expo-router";
+import { mockZones, Zone } from "../../data/mockZones";
+import { ZoneBottomSheet } from "../../components/ZoneBottomSheet";
 
-// Note: MapBox requires native linking, this is a placeholder structure
-// In production, use @rnmapbox/maps with proper setup
+// NOTE: react-native-maps requires a native rebuild (npx expo run:android)
+// Using territory list view until native build includes the maps module
+let MapView: any = null;
+let Polygon: any = null;
+let Marker: any = null;
+let PROVIDER_GOOGLE: any = null;
+
+try {
+  const maps = require("react-native-maps");
+  MapView = maps.default;
+  Polygon = maps.Polygon;
+  Marker = maps.Marker;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+} catch {
+  // Native module not available — will show list fallback
+}
+
+const BHOPAL_CENTER = { latitude: 23.2599, longitude: 77.4126 };
+
+const DARK_MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#0e2c0f" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#99b292" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#011202" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a3a1b" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#0e2c0f" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#051e06" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#0f3a11" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#374d34" }] },
+];
 
 export default function MapScreen() {
-  const [selectedZone, setSelectedZone] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<"territory" | "heatmap" | "gyms">("territory");
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setIsLoading(false), 1000);
-  }, []);
+  const handleZonePress = (zone: Zone) => {
+    setSelectedZone(zone);
+  };
 
-  return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      {/* Map Header */}
-      <View className="absolute top-12 left-4 right-4 z-10">
-        <View className="bg-white rounded-xl shadow-lg p-3 flex-row items-center justify-between">
-          <View className="flex-row gap-2">
-            <ViewModeButton
-              active={viewMode === "territory"}
-              label="Territory"
-              onPress={() => setViewMode("territory")}
-            />
-            <ViewModeButton
-              active={viewMode === "heatmap"}
-              label="Heatmap"
-              onPress={() => setViewMode("heatmap")}
-            />
-            <ViewModeButton
-              active={viewMode === "gyms"}
-              label="Gyms"
-              onPress={() => setViewMode("gyms")}
-            />
-          </View>
-          <TouchableOpacity className="p-2 bg-gray-100 rounded-lg">
-            <Filter size={20} color="#6b7280" />
-          </TouchableOpacity>
+  // If native maps module isn't available, show territory list view
+  if (!MapView) {
+    return (
+      <View className="flex-1 bg-[#011202]">
+        {/* Header */}
+        <View className="pt-14 px-6 pb-4">
+          <Text className="text-[#6bff8f] text-xs font-bold uppercase tracking-widest mb-1">Territory Map</Text>
+          <Text className="text-[#d5f0cd] text-2xl font-bold">Bhopal Zones</Text>
+          <Text className="text-[#99b292] text-sm mt-1">Tap a zone to see the leaderboard</Text>
         </View>
-      </View>
 
-      {/* Map Placeholder */}
-      <View className="flex-1 bg-gray-100 items-center justify-center">
-        {isLoading ? (
-          <ActivityIndicator size="large" color="#22c55e" />
-        ) : (
-          <View className="items-center">
-            <Text className="text-6xl mb-4">🗺️</Text>
-            <Text className="text-gray-600 text-lg font-medium">
-              Territory Map
-            </Text>
-            <Text className="text-gray-500 text-sm mt-2 text-center px-8">
-              Map integration with Mapbox will show zone boundaries, gym
-              locations, and territory control
-            </Text>
-
-            {/* Mock Zone Data */}
-            <View className="mt-6 w-80">
-              <MockZoneCard
-                zoneName="Vijay Nagar"
-                pinCode="462001"
-                controller="Ironclad Fitness"
-                controllerColor="#22c55e"
-                totalAp={4820}
-                onPress={() =>
-                  setSelectedZone({
-                    name: "Vijay Nagar",
-                    pinCode: "462001",
-                    controller: "Ironclad Fitness",
-                    score: 4820,
-                  })
-                }
-              />
-              <MockZoneCard
-                zoneName="MP Nagar"
-                pinCode="462003"
-                controller="Iron Paradise"
-                controllerColor="#3b82f6"
-                totalAp={4680}
-                onPress={() =>
-                  setSelectedZone({
-                    name: "MP Nagar",
-                    pinCode: "462003",
-                    controller: "Iron Paradise",
-                    score: 4680,
-                  })
-                }
-              />
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Floating Action Buttons */}
-      <View className="absolute bottom-6 right-4 gap-3">
-        <TouchableOpacity className="w-14 h-14 bg-white rounded-full shadow-lg items-center justify-center">
-          <Navigation size={24} color="#22c55e" />
-        </TouchableOpacity>
-        <TouchableOpacity className="w-14 h-14 bg-green-600 rounded-full shadow-lg items-center justify-center">
-          <Plus size={28} color="#ffffff" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Zone Detail Bottom Sheet */}
-      {selectedZone && (
-        <View className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl">
-          <View className="p-6">
-            <View className="w-12 h-1 bg-gray-300 rounded-full self-center mb-4" />
-
-            <View className="flex-row justify-between items-start mb-4">
-              <View>
-                <Text className="text-xl font-bold text-gray-900">
-                  {selectedZone.name}
-                </Text>
-                <Text className="text-gray-500">Zone {selectedZone.pinCode}</Text>
+        <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
+          {mockZones.map((zone) => (
+            <TouchableOpacity
+              key={zone.id}
+              onPress={() => handleZonePress(zone)}
+              className="bg-[#0e2c0f] border border-[#374d34] rounded-2xl p-4 mb-3"
+            >
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center flex-1">
+                  <View
+                    className="w-4 h-4 rounded-full mr-3"
+                    style={{ backgroundColor: zone.controllingGroup?.color ?? "#445b41" }}
+                  />
+                  <View className="flex-1">
+                    <Text className="text-[#d5f0cd] font-bold text-base">{zone.name}</Text>
+                    <Text className="text-[#99b292] text-xs mt-0.5">
+                      {zone.controllingGroup ? `Controlled by ${zone.controllingGroup.name}` : "Neutral — unclaimed!"}
+                    </Text>
+                  </View>
+                </View>
+                <View className="items-end">
+                  <Text className="text-[#6bff8f] font-bold text-sm">
+                    {zone.controllingGroup?.totalAP.toLocaleString() ?? "0"} AP
+                  </Text>
+                  <Text className="text-[#99b292] text-xs">
+                    {zone.leaderboard.length} groups
+                  </Text>
+                </View>
               </View>
-              <TouchableOpacity
-                onPress={() => setSelectedZone(null)}
-                className="p-2"
-              >
-                <Text className="text-gray-500">✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="flex-row items-center gap-2 mb-4">
-              <View
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: "#22c55e" }}
-              />
-              <Text className="text-gray-700 font-medium">
-                Controlled by {selectedZone.controller}
-              </Text>
-            </View>
-
-            <View className="bg-gray-50 rounded-xl p-4 mb-4">
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-gray-600">Zone Score</Text>
-                <Text className="font-bold text-gray-900">
-                  {selectedZone.score.toLocaleString()} AP
-                </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-gray-600">Active Groups</Text>
-                <Text className="font-bold text-gray-900">5</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity className="bg-green-600 py-4 rounded-xl items-center">
-              <Text className="text-white font-semibold text-lg">
-                View Leaderboard
-              </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      )}
-    </SafeAreaView>
-  );
-}
+          ))}
 
-function ViewModeButton({
-  active,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  onPress: () => void;
-}) {
+          <View className="h-24" />
+        </ScrollView>
+
+        {/* FAB */}
+        <TouchableOpacity
+          onPress={() => router.push("/log-activity")}
+          style={{ bottom: 24, right: 24 }}
+          className="absolute w-16 h-16 bg-[#22C55E] rounded-full shadow-lg items-center justify-center border border-[#6bff8f] z-10"
+        >
+          <Text className="text-[#002c0f] text-3xl font-bold leading-none mb-1">+</Text>
+        </TouchableOpacity>
+
+        <ZoneBottomSheet
+          zone={selectedZone}
+          onClose={() => setSelectedZone(null)}
+        />
+      </View>
+    );
+  }
+
+  // Full map view (when native module is available after rebuild)
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      className={`px-3 py-2 rounded-lg ${
-        active ? "bg-green-100" : "bg-gray-100"
-      }`}
-    >
-      <Text
-        className={`font-medium ${active ? "text-green-700" : "text-gray-600"}`}
+    <View className="flex-1 bg-[#011202]">
+      <MapView
+        style={StyleSheet.absoluteFillObject}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={{
+          ...BHOPAL_CENTER,
+          latitudeDelta: 0.15,
+          longitudeDelta: 0.15,
+        }}
+        customMapStyle={DARK_MAP_STYLE}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        toolbarEnabled={false}
       >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
+        {mockZones.map((zone) => {
+          const color = zone.controllingGroup?.color ?? "#445b41";
+          const isSelected = selectedZone?.id === zone.id;
+          return (
+            <Polygon
+              key={zone.id}
+              coordinates={zone.polygon.map(([lng, lat]: [number, number]) => ({
+                latitude: lat,
+                longitude: lng,
+              }))}
+              fillColor={`${color}50`}
+              strokeColor={color}
+              strokeWidth={isSelected ? 3 : 1.5}
+              tappable
+              onPress={() => handleZonePress(zone)}
+            />
+          );
+        })}
 
-function MockZoneCard({
-  zoneName,
-  pinCode,
-  controller,
-  controllerColor,
-  totalAp,
-  onPress,
-}: {
-  zoneName: string;
-  pinCode: string;
-  controller: string;
-  controllerColor: string;
-  totalAp: number;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-gray-100"
-    >
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-3">
-          <View
-            className="w-4 h-12 rounded-full"
-            style={{ backgroundColor: controllerColor }}
-          />
-          <View>
-            <Text className="font-semibold text-gray-900">{zoneName}</Text>
-            <Text className="text-gray-500 text-sm">{pinCode}</Text>
+        {mockZones.map((zone) => (
+          <Marker
+            key={`marker-${zone.id}`}
+            coordinate={{
+              latitude: zone.center[1],
+              longitude: zone.center[0],
+            }}
+            onPress={() => handleZonePress(zone)}
+          >
+            <View className="items-center">
+              <View className="bg-[#0e2c0f]/90 border border-[#374d34] rounded-lg px-2 py-1">
+                <Text className="text-[#d5f0cd] text-[10px] font-bold">{zone.name}</Text>
+                {zone.controllingGroup && (
+                  <Text className="text-[#6bff8f] text-[9px] font-bold text-center">
+                    {zone.controllingGroup.totalAP.toLocaleString()} AP
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Marker>
+        ))}
+      </MapView>
+
+      <View pointerEvents="none" className="absolute top-14 left-6 right-6 z-10">
+        <View className="bg-[#0e2c0f]/90 border border-[#374d34] rounded-2xl p-4 flex-row items-center shadow-lg">
+          <View className="w-10 h-10 bg-[#051e06] rounded-xl items-center justify-center border border-[#374d34] mr-4">
+            <Text className="text-xl">📍</Text>
           </View>
-        </View>
-        <View className="items-end">
-          <Text className="font-bold text-gray-900">
-            {totalAp.toLocaleString()} AP
-          </Text>
-          <Text className="text-gray-500 text-sm">{controller}</Text>
+          <View className="flex-1">
+            <Text className="text-[#99b292] text-xs font-bold uppercase tracking-widest mb-0.5">Current Zone</Text>
+            <Text className="text-[#d5f0cd] font-bold text-lg">
+              {selectedZone ? selectedZone.name : "Kolar Road, Bhopal"}
+            </Text>
+          </View>
+          <View className="bg-[#22c55e]/20 px-3 py-1.5 rounded-lg border border-[#6bff8f]/30">
+            <Text className="text-[#6bff8f] font-bold text-sm">
+              #{selectedZone ? selectedZone.leaderboard[0]?.rank || "-" : "3"}
+            </Text>
+          </View>
         </View>
       </View>
-    </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => router.push("/log-activity")}
+        style={{ bottom: 24, right: 24 }}
+        className="absolute w-16 h-16 bg-[#22C55E] rounded-full shadow-lg items-center justify-center border border-[#6bff8f] z-10"
+      >
+        <Text className="text-[#002c0f] text-3xl font-bold leading-none mb-1">+</Text>
+      </TouchableOpacity>
+
+      <ZoneBottomSheet
+        zone={selectedZone}
+        onClose={() => setSelectedZone(null)}
+      />
+    </View>
   );
 }
