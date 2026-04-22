@@ -1,193 +1,121 @@
-# 🏟️ FitArena
+# FitArena — Turn Every Workout Into a Territory Battle
 
-**Turn Every Workout Into a Territory Battle**
+> A competitive fitness SaaS where groups compete to *own* real-world pin-code zones based on their collective workout activity. PUBG meets fitness. India-first, mobile-first, WhatsApp-native.
 
-FitArena is a competitive fitness platform where groups compete to "own" real-world zones (pin code areas) based on their collective workout activity. Think PUBG meets fitness tracking.
+[![Turborepo](https://img.shields.io/badge/Turborepo-monorepo-EF4444?logo=turborepo)](https://turbo.build/)
+[![Fastify](https://img.shields.io/badge/Fastify-API-black?logo=fastify)](https://fastify.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
+[![Flutter](https://img.shields.io/badge/Flutter-mobile-02569B?logo=flutter)](https://flutter.dev/)
+[![Drizzle](https://img.shields.io/badge/Drizzle-ORM-C5F74F)](https://orm.drizzle.team/)
+
+## The Core Loop
+
+Log a workout → earn Arena Points (AP) → your group's AP accumulates in the pin-code zone where you trained → the group with the highest AP this week **owns** the zone → weekly reset → fight for it again.
+
+## Why This Exists
+
+Fitness apps plateau because the feedback loop is private (you vs. yesterday-you). FitArena makes it public and tribal: your gym, your colony, your running club actually *owns* territory on a map that everyone sees. The motivation stops being abstract.
 
 ## Features
 
-- **Territory Control** - Groups compete for zone ownership based on weekly Arena Points (AP)
-- **Group Competition** - Form teams with gyms, running clubs, or friends
-- **Weekly Resets** - Scores reset every Monday for fresh battles
-- **Multi-Source Tracking** - Sync from Strava, Google Fit, or manual entry
-- **Coach Dashboard** - Track client activity and run challenges
-- **AI-Powered Digests** - Weekly summaries and competitive commentary
+- **Territory control** — zones = Indian pin-code areas; ownership decided by weekly AP.
+- **Group competition** — create a group (gym, running club, friends) and pool AP.
+- **Weekly reset** — scores zero out every Monday; fresh battles.
+- **Multi-source activity tracking** — Strava webhooks + polling, Google Fit REST, Terra API (200+ wearables), manual entry (rate-limited and discounted).
+- **Confidence scoring** — every activity scored 0–1 on source trust, completeness, plausibility, and pattern match. Low-confidence activities are down-weighted.
+- **Zone Health Score** — data freshness, token health, sync success, completeness; a zone can be *paused* if its data quality drops.
+- **Challenges** — group-vs-group and one-to-one challenges, with optional stakes.
+- **Coach dashboard** — web app for coaches/gyms to track client activity and run challenges.
+- **WhatsApp AI agent** — weekly digests and competitive commentary via Claude.
+- **Push notifications + real-time feed** — Socket.io (with a migration path to Ably/Pusher).
+- **Anti-cheat** — rate limits, manual-entry caps, plausibility filters on duration/pace/distance.
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Monorepo | Turborepo + pnpm |
+| API | Fastify 4 + TypeScript, schema-based validation |
+| Web (landing + coach dashboard) | Next.js 14 |
+| Mobile | Flutter 3.41 / Dart 3.11 |
+| Database | Neon Postgres (serverless) |
+| ORM | Drizzle |
+| Cache / sessions / OTP / rate limits | Redis (Upstash) |
+| Jobs | BullMQ |
+| Maps | Mapbox GL (not Google Maps — better styling, GeoJSON, 50K MAT free) |
+| State (mobile) | Zustand + TanStack Query |
+| Auth | Phone OTP → JWT (1h access + 30d refresh) → Redis blacklist on logout |
+| Shared types/validation | Zod in `packages/shared` |
+
+## Architecture Highlights
+
+- **AP calculation:** `Base AP = Duration × Activity Multiplier × Verification Multiplier + Bonuses`
+- **5 ingestion paths** monitored independently: Strava webhooks (80%+ of data), Strava polling (backup), Google Fit (60-min sync), Terra API, manual entry (max 3/day, 120 min, 0.7× multiplier).
+- **Zone Health Score (0–100):** freshness 40% + token health 25% + sync success 20% + completeness 15%. < 40 pauses the zone's leaderboard.
+- **Weekly reset + materialised views** for zone leaderboards — avoids expensive per-request aggregation.
+- **Rate-limit priority queue:** P1 active battles, P2 failed webhooks, P3 stale syncs, P4 routine.
 
 ## Project Structure
 
 ```
-fitarena/
-├── apps/
-│   ├── api/          # Fastify backend
-│   ├── web/          # Next.js 14 dashboard
-│   └── mobile/       # Expo React Native app
-├── packages/
-│   ├── db/           # Drizzle ORM schema
-│   └── shared/       # Shared types, utils, validation
-├── docker-compose.yml
-└── pnpm-workspace.yaml
+apps/
+├── api/                  # Fastify 4 backend
+├── web/                  # Next.js dashboards + landing
+└── flutter_mobile/       # Flutter consumer app
+packages/
+├── db/                   # Drizzle schema (17 tables)
+└── shared/               # Zod validators, AP calc utils, types
 ```
-
-## Tech Stack
-
-- **Mobile**: React Native (Expo), NativeWind, Zustand, React Query
-- **Web**: Next.js 14, Tailwind CSS, Recharts
-- **API**: Fastify, Drizzle ORM, BullMQ
-- **Database**: PostgreSQL (Neon), Redis (Upstash)
-- **Maps**: Mapbox
-- **Integrations**: Strava, Google Fit, WhatsApp Business API
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- Docker (for local Postgres/Redis)
-
-### Setup
-
-1. **Clone and install dependencies**
-
 ```bash
-cd fitarena
 pnpm install
-```
 
-2. **Start local databases**
+# 1. Env
+cp .env.example .env.local
 
-```bash
-docker compose up -d
-```
-
-3. **Configure environment**
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-4. **Generate database schema**
-
-```bash
+# 2. Database
 pnpm db:push
+pnpm db:seed            # seeds zones = Indian pin-codes, activity multipliers
+
+# 3. Dev
+pnpm dev                # api + web + mobile (Flutter run separately)
 ```
 
-5. **Start development servers**
+### Flutter
 
 ```bash
-# Terminal 1 - API
-pnpm --filter @fitarena/api dev
-
-# Terminal 2 - Web
-pnpm --filter @fitarena/web dev
-
-# Terminal 3 - Mobile
-pnpm --filter @fitarena/mobile start
+cd apps/flutter_mobile
+flutter pub get
+flutter run
 ```
 
-### Access
+## Roadmap (16-Week Sprint Plan)
 
-- **API**: http://localhost:3000
-- **Web Dashboard**: http://localhost:3001
-- **Mobile**: Expo Go app on your device
+| Sprint | Weeks | Focus | Status |
+|--------|-------|-------|--------|
+| 1–2 | 1–4 | Foundation: monorepo, schema, auth, Strava, AP, groups, zones, Mapbox | Mostly done |
+| 3–4 | 5–8 | Competition engine: weekly reset, territory control, streaks, challenges, XP/levels, push, WebSocket | Next |
+| 5–6 | 9–12 | Engagement + B2B: WhatsApp, Claude digests, coach dashboard, gym profiles/QR, Google Fit |  |
+| 7–8 | 13–16 | Polish + launch: anti-cheat, performance, offline, Razorpay premium, app-store submission |  |
 
-## Development
+**Month-6 targets:** 50K MAU, 15K DAU, 5K groups, 200 gyms, 100 coaches, 45% W1 retention, 25% W4, ₹5–8 LPA MRR.
 
-### Database Migrations
+## Performance Targets
 
-```bash
-# Generate migration
-pnpm db:generate
+- Mobile cold-start to interactive map < 3s
+- Tab switch < 300ms, leaderboard load < 1s, map rendering < 500ms
+- 60fps pan/zoom/scroll on mid-range Android (Redmi / Realme / Samsung M)
 
-# Apply migration
-pnpm db:migrate
+## Cost Estimate at 50K MAU
 
-# Push schema directly (dev only)
-pnpm db:push
-
-# Open Drizzle Studio
-pnpm db:studio
-```
-
-### API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/auth/otp/send` | POST | Send OTP |
-| `/api/v1/auth/otp/verify` | POST | Verify OTP |
-| `/api/v1/users/me` | GET | Current user profile |
-| `/api/v1/groups` | GET/POST | List/create groups |
-| `/api/v1/groups/:id/join` | POST | Join group |
-| `/api/v1/zones` | GET | List zones |
-| `/api/v1/zones/:id/leaderboard` | GET | Zone leaderboard |
-| `/api/v1/activities` | POST | Log manual activity |
-| `/api/v1/challenges` | GET/POST | List/create challenges |
-| `/api/v1/integrations/strava/auth` | GET | Strava OAuth URL |
-| `/api/v1/webhooks/strava` | POST | Strava webhook |
-
-### Arena Points Calculation
-
-```
-Base AP = Duration (minutes) × Activity Multiplier
-Intensity Bonus = Base AP × HR Zone Bonus (0-40%)
-Consistency Bonus = 10/25/50 AP for 3/5/7 day streaks
-Verification Mult = 0.7 (manual) to 1.0 (device+GPS+HR)
-
-Final AP = (Base + Intensity + Consistency) × Verification
-```
-
-## Mobile App Screens
-
-- **Map** - Territory view with zone ownership
-- **Groups** - My groups and discovery
-- **Challenges** - Active and completed challenges
-- **Feed** - Activity feed with reactions
-- **Profile** - Stats, badges, integrations
-
-## Deployment
-
-### API (Railway/Fly.io)
-
-```bash
-cd apps/api
-flyctl launch
-```
-
-### Web (Vercel)
-
-```bash
-vercel --prod
-```
-
-### Mobile (Expo EAS)
-
-```bash
-eas build --platform all
-eas submit
-```
-
-## Environment Variables
-
-See `.env.example` for all required variables. Key ones:
-
-- `DATABASE_URL` - Neon Postgres connection string
-- `REDIS_URL` - Upstash Redis URL
-- `JWT_SECRET` - JWT signing secret
-- `STRAVA_CLIENT_ID/SECRET` - Strava API credentials
-- `MAPBOX_ACCESS_TOKEN` - Mapbox token
-
-## Contributing
-
-1. Create a feature branch
-2. Make changes
-3. Run `pnpm lint` and `pnpm typecheck`
-4. Submit PR
+~$3,430/month: Neon $69, Vercel $20, Railway $50, Upstash $20, WhatsApp $2,400, Claude $772, Terra $99.
 
 ## License
 
-MIT
+Proprietary — Axon / Aarambh Labs / Yatharth Tripathi. Not for redistribution.
 
 ---
 
-Built with 💪 for the fitness community.
+Built by [@alphoder](https://github.com/alphoder). Full PRD in `project.txt` (6,500 lines).
