@@ -114,7 +114,7 @@ flutter run
 
 ## License
 
-Proprietary — Axon / Aarambh Labs / Yatharth Tripathi. Not for redistribution.
+Proprietary — Vedant Singh. Not for redistribution.
 
 ---
 
