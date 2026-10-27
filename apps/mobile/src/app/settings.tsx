@@ -120,7 +120,7 @@ export default function SettingsScreen() {
         <Text className="text-xs font-bold text-[#99b292] uppercase tracking-widest mb-3">About</Text>
         <View className="bg-[#0e2c0f] border border-[#374d34] rounded-xl overflow-hidden mb-6">
           <InfoRow label="Version" value="1.0.0" />
-          <InfoRow label="Built by" value="Aarambh Labs" last />
+          <InfoRow label="Built by" value="Vedant Singh" last />
         </View>
 
         {/* Danger Zone */}
